@@ -1,8 +1,23 @@
-# ClawDaddy MCP Server
+<p align="center">
+  <a href="https://clawdaddy.app">
+    <img src="logo.png" alt="ClawDaddy" width="400">
+  </a>
+</p>
 
-An MCP (Model Context Protocol) server enabling AI assistants like Claude to check domain availability, purchase domains, and manage DNS - all without CAPTCHAs.
+<h1 align="center">ClawDaddy MCP Server</h1>
 
-**Powered by [ClawDaddy.app](https://clawdaddy.app) - The World's #1 AI-Friendly Domain Registrar**
+<p align="center">
+  <strong>The World's #1 AI-Friendly Domain Registrar</strong><br>
+  Check availability, purchase domains, manage DNS - all without CAPTCHAs.
+</p>
+
+<p align="center">
+  <a href="https://clawdaddy.app">Website</a> ·
+  <a href="https://clawdaddy.app/llms.txt">API Docs</a> ·
+  <a href="https://www.npmjs.com/package/clawdaddy-mcp">npm</a>
+</p>
+
+---
 
 ## Features
 
