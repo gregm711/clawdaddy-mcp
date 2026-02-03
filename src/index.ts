@@ -45,12 +45,6 @@ interface QuoteResult {
   currency: string;
   validUntil: string;
   paymentMethods: {
-    x402: {
-      enabled: boolean;
-      currency: string;
-      network: string;
-      endpoint: string;
-    };
     stripe: {
       enabled: boolean;
       currency: string;
@@ -69,23 +63,10 @@ interface PurchaseResult {
   registrationId?: string;
   expiresAt?: string;
   nameservers?: string[];
-  transactionHash?: string;
   managementToken?: string;
   manageUrl?: string;
   message?: string;
   error?: string;
-  x402?: {
-    version: string;
-    accepts: Array<{
-      scheme: string;
-      network: string;
-      maxAmountRequired: string;
-      resource: string;
-      description: string;
-      payTo: string;
-      asset: string;
-    }>;
-  };
 }
 
 interface DomainInfo {
@@ -179,30 +160,15 @@ async function getQuote(domain: string): Promise<QuoteResult> {
   return response.json() as Promise<QuoteResult>;
 }
 
-async function purchaseDomain(
-  domain: string,
-  method: "stripe" | "x402",
-  paymentProof?: string
-): Promise<PurchaseResult> {
-  const url = `${BASE_URL}/api/purchase/${encodeURIComponent(domain)}?method=${method}`;
-  const headers: Record<string, string> = {
-    "User-Agent": "ClawDaddy-MCP/1.0",
-    Accept: "application/json",
-  };
-
-  if (paymentProof) {
-    headers["x-payment"] = paymentProof;
-  }
-
+async function purchaseDomain(domain: string): Promise<PurchaseResult> {
+  const url = `${BASE_URL}/api/purchase/${encodeURIComponent(domain)}`;
   const response = await fetch(url, {
     method: "POST",
-    headers,
+    headers: {
+      "User-Agent": "ClawDaddy-MCP/1.0",
+      Accept: "application/json",
+    },
   });
-
-  // 402 is expected for x402 payment flow
-  if (response.status === 402) {
-    return response.json() as Promise<PurchaseResult>;
-  }
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: response.statusText }));
@@ -442,14 +408,11 @@ async function getTransferCode(domain: string, token: string): Promise<TransferR
 }
 
 async function recoverToken(
-  email?: string,
-  wallet?: string,
+  email: string,
   domain?: string
 ): Promise<RecoverResult> {
   const url = `${BASE_URL}/api/recover`;
-  const body: Record<string, string> = {};
-  if (email) body.email = email;
-  if (wallet) body.wallet = wallet;
+  const body: Record<string, string> = { email };
   if (domain) body.domain = domain;
 
   const response = await fetch(url, {
@@ -508,14 +471,7 @@ function formatQuoteResult(result: QuoteResult): string {
       lines.push(`  Note: Premium domain`);
     }
 
-    lines.push(`\nPayment Methods:`);
-    if (result.paymentMethods.x402.enabled) {
-      lines.push(`  - x402 (USDC on ${result.paymentMethods.x402.network})`);
-    }
-    if (result.paymentMethods.stripe.enabled) {
-      lines.push(`  - Stripe (Credit/Debit Card)`);
-    }
-
+    lines.push(`\nPayment: Stripe (Credit/Debit Card)`);
     lines.push(`\nQuote valid until: ${result.validUntil}`);
   }
 
@@ -525,29 +481,15 @@ function formatQuoteResult(result: QuoteResult): string {
 function formatPurchaseResult(result: PurchaseResult): string {
   const lines: string[] = [];
 
-  // Handle 402 Payment Required
-  if (result.x402) {
-    lines.push(`Payment Required for domain purchase`);
-    lines.push(`\nx402 Payment Details:`);
-    const accept = result.x402.accepts[0];
-    if (accept) {
-      lines.push(`  Network: ${accept.network} (Base)`);
-      lines.push(`  Amount: ${parseInt(accept.maxAmountRequired) / 1_000_000} USDC`);
-      lines.push(`  Pay To: ${accept.payTo}`);
-      lines.push(`  Asset: ${accept.asset} (USDC)`);
-      lines.push(`\nTo complete purchase, send USDC to the address above,`);
-      lines.push(`then call purchase_domain again with the transaction hash as payment_proof.`);
-    }
-    return lines.join("\n");
-  }
-
   // Handle Stripe checkout
   if (result.checkoutUrl) {
     lines.push(`Stripe Checkout Session Created`);
     lines.push(`\nCheckout URL: ${result.checkoutUrl}`);
-    lines.push(`Session ID: ${result.sessionId}`);
-    lines.push(`\nOpen the checkout URL to complete payment.`);
-    lines.push(`After payment, you'll receive your management token via email.`);
+    lines.push(`\n** ACTION REQUIRED: Have your human open the checkout URL to complete payment with their credit card. **`);
+    lines.push(`\nAfter payment:`);
+    lines.push(`1. The management token will be shown on the success page`);
+    lines.push(`2. A confirmation email will be sent with the token`);
+    lines.push(`3. Save the token to manage DNS, nameservers, and settings`);
     return lines.join("\n");
   }
 
@@ -671,7 +613,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "get_quote",
         description:
-          "Get a purchase quote for a domain including final pricing and available payment methods (x402/USDC or Stripe/card). The quote includes the base price, service fee (currently $0 during Lobster Launch Special!), and total cost.",
+          "Get a purchase quote for a domain including final pricing. The quote includes the base price, service fee (currently $0 during Lobster Launch Special!), and total cost. Payment is via Stripe (credit/debit card).",
         inputSchema: {
           type: "object",
           properties: {
@@ -686,7 +628,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "purchase_domain",
         description:
-          "Purchase a domain. For Stripe: returns a checkout URL to complete payment. For x402: first call returns payment requirements (402), then call again with payment_proof (transaction hash) to complete. IMPORTANT: Save the management token returned after successful purchase!",
+          "Purchase a domain via Stripe. Returns a checkout URL where the user can complete payment with a credit/debit card. After payment, the management token is shown on the success page and emailed to the customer. IMPORTANT: Save the management token!",
         inputSchema: {
           type: "object",
           properties: {
@@ -694,18 +636,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               type: "string",
               description: "The domain to purchase (e.g., 'example.com')",
             },
-            method: {
-              type: "string",
-              enum: ["stripe", "x402"],
-              description: "Payment method: 'stripe' for card payment, 'x402' for USDC on Base",
-            },
-            payment_proof: {
-              type: "string",
-              description:
-                "For x402 only: Transaction hash or payment proof after sending USDC. Leave empty on first call to get payment requirements.",
-            },
           },
-          required: ["domain", "method"],
+          required: ["domain"],
         },
       },
 
@@ -965,23 +897,20 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "recover_token",
         description:
-          "Recover a lost management token. Provide the email used for Stripe purchase, or wallet address for x402 purchase. A new token will be sent to your email. WARNING: This invalidates your old token.",
+          "Recover a lost management token. Provide the email used during Stripe checkout. A new token will be sent to your email. WARNING: This invalidates your old token.",
         inputSchema: {
           type: "object",
           properties: {
             email: {
               type: "string",
-              description: "Email address used for Stripe purchase",
-            },
-            wallet: {
-              type: "string",
-              description: "Wallet address used for x402 purchase",
+              description: "Email address used during Stripe checkout",
             },
             domain: {
               type: "string",
               description: "Specific domain to recover (optional - omit to recover all domains)",
             },
           },
+          required: ["email"],
         },
       },
     ],
@@ -1009,14 +938,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case "purchase_domain": {
-        const { domain, method, payment_proof } = args as {
-          domain: string;
-          method: "stripe" | "x402";
-          payment_proof?: string;
-        };
+        const { domain } = args as { domain: string };
         if (!domain) throw new Error("Domain is required");
-        if (!method) throw new Error("Payment method is required");
-        const result = await purchaseDomain(domain, method, payment_proof);
+        const result = await purchaseDomain(domain);
         return { content: [{ type: "text", text: formatPurchaseResult(result) }] };
       }
 
@@ -1142,15 +1066,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case "recover_token": {
-        const { email, wallet, domain } = args as {
-          email?: string;
-          wallet?: string;
+        const { email, domain } = args as {
+          email: string;
           domain?: string;
         };
-        if (!email && !wallet) {
-          throw new Error("Either email or wallet address is required");
+        if (!email) {
+          throw new Error("Email address is required");
         }
-        const result = await recoverToken(email, wallet, domain);
+        const result = await recoverToken(email, domain);
         return {
           content: [
             {

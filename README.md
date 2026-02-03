@@ -22,7 +22,7 @@
 ## Features
 
 - **Domain Lookup** - Check availability and pricing instantly
-- **Domain Purchase** - Buy domains with USDC (x402) or credit card (Stripe)
+- **Domain Purchase** - Buy domains via Stripe (credit/debit card)
 - **DNS Management** - Full CRUD for A, AAAA, CNAME, MX, TXT, NS, SRV records
 - **Nameserver Control** - Point to Cloudflare, Vercel, Netlify, or any provider
 - **Domain Settings** - Manage transfer lock, auto-renew, and privacy
@@ -63,8 +63,8 @@ npm install -g clawdaddy-mcp
 | Tool | Description |
 |------|-------------|
 | `lookup_domain` | Check if a domain is available with pricing |
-| `get_quote` | Get purchase quote with payment options |
-| `purchase_domain` | Buy a domain (Stripe or x402/USDC) |
+| `get_quote` | Get purchase quote with pricing |
+| `purchase_domain` | Get Stripe checkout URL for domain purchase |
 
 ### Management Tools (Requires Token)
 
@@ -96,31 +96,25 @@ Claude: [Uses lookup_domain tool]
   Renewal Price: $19.99/year
 ```
 
-### Purchase a Domain with USDC
+### Purchase a Domain
 
 ```
-User: Buy coolstartup.com with USDC
-Claude: [Uses purchase_domain with method=x402]
+User: Buy coolstartup.com
+Claude: [Uses purchase_domain tool]
+  Stripe Checkout Session Created
 
-First call returns payment requirements:
-  Payment Required for domain purchase
+  Checkout URL: https://checkout.stripe.com/c/pay/cs_live_...
 
-  x402 Payment Details:
-    Network: eip155:8453 (Base)
-    Amount: 12.99 USDC
-    Pay To: 0x...
-    Asset: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 (USDC)
+  ** ACTION REQUIRED: Have your human open the checkout URL to complete
+  payment with their credit card. **
 
-After payment, call again with transaction hash:
-  Domain Registered Successfully!
-
-  Domain: coolstartup.com
-  Registration ID: 12345
-  Expires: 2027-02-03T10:30:00.000Z
-
-  *** IMPORTANT - SAVE THIS TOKEN ***
-  Management Token: clwd_abc123xyz789...
+  After payment:
+  1. The management token will be shown on the success page
+  2. A confirmation email will be sent with the token
+  3. Save the token to manage DNS, nameservers, and settings
 ```
+
+**Important:** The agent generates a checkout URL, but a **human must complete the payment** via Stripe. After payment, provide the management token back to the agent for DNS/nameserver management.
 
 ### Configure DNS
 
@@ -148,22 +142,14 @@ Claude: [Uses set_nameservers tool]
     - ns2.cloudflare.com
 ```
 
-## Payment Methods
+## Purchase Flow
 
-### x402 (USDC on Base) - For AI Agents
-
-1. Call `purchase_domain` with `method: "x402"`
-2. Receive HTTP 402 with payment requirements
-3. Send USDC to the specified wallet on Base network
-4. Call `purchase_domain` again with `payment_proof: "<tx_hash>"`
-5. Receive management token
-
-### Stripe (Credit Card) - For Humans
-
-1. Call `purchase_domain` with `method: "stripe"`
-2. Receive checkout URL
-3. Complete payment on Stripe
-4. Management token sent via email
+1. **Agent** calls `purchase_domain` with the domain name
+2. **Agent** receives a Stripe checkout URL
+3. **Human** opens the checkout URL and completes payment with credit card
+4. **Human** sees the management token on the success page (also emailed)
+5. **Human** provides the token to the agent (e.g., "my token is clwd_abc123...")
+6. **Agent** can now manage DNS, nameservers, and settings using the token
 
 ## Management Tokens
 
@@ -172,7 +158,7 @@ After purchase, you receive a management token (`clwd_xxx...`). This token is re
 **Important:**
 - Save your token immediately - it cannot be retrieved without recovery
 - Token recovery generates a new token and invalidates the old one
-- Use `recover_token` with your email or wallet address if lost
+- Use `recover_token` with your email address if lost
 
 ## Current Promotion
 
