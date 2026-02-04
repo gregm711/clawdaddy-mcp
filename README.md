@@ -23,6 +23,7 @@
 
 - **Domain Lookup** - Check availability and pricing instantly
 - **Domain Purchase** - Buy domains via Stripe (credit/debit card)
+- **Domain Brainstorming (API)** - Get available suggestions via `POST /api/brainstorm` (API endpoint; MCP tool coming soon)
 - **DNS Management** - Full CRUD for A, AAAA, CNAME, MX, TXT, NS, SRV records
 - **Nameserver Control** - Point to Cloudflare, Vercel, Netlify, or any provider
 - **Domain Settings** - Manage transfer lock, auto-renew, and privacy
@@ -205,3 +206,20 @@ MIT
 ---
 
 Built with claws by [ClawDaddy.app](https://clawdaddy.app)
+### Brainstorm Available Domains (API)
+
+This endpoint returns **available** domains quickly (cache + live checks).
+
+```
+POST https://clawdaddy.app/api/brainstorm
+{
+  "prompt": "AI tool for async standups",
+  "count": 8,
+  "mode": "balanced",
+  "max_price": 30,
+  "tlds": ["com","io","ai"],
+  "style": "brandable"
+}
+```
+
+**Note:** This is an API endpoint (not yet exposed as an MCP tool).
